@@ -76,7 +76,10 @@ function AdminDashboard() {
   const [newSticker, setNewSticker] = useState({
     name: '', emoji: '', category: 'Funny',
     price: '', stock: '', description: '', imageUrl: '',
+    images: []
   });
+  const [imageUrlInput, setImageUrlInput] = useState('');
+  const [editImageUrlInput, setEditImageUrlInput] = useState('');
 
   // Dialog and Notifications states
   const [editingSticker, setEditingSticker] = useState(null);
@@ -224,11 +227,25 @@ function AdminDashboard() {
         .getPublicUrl(filePath);
 
       if (isEdit) {
-        setEditingSticker(p => ({ ...p, imageUrl: publicUrl }));
-        showToast('Image uploaded successfully for editing!', 'success');
+        setEditingSticker(p => {
+          const images = [...(p.images || []), publicUrl];
+          return {
+            ...p,
+            images,
+            imageUrl: p.imageUrl || publicUrl
+          };
+        });
+        showToast('Image uploaded and added to sticker gallery!', 'success');
       } else {
-        setNewSticker(p => ({ ...p, imageUrl: publicUrl }));
-        showToast('Image uploaded successfully!', 'success');
+        setNewSticker(p => {
+          const images = [...(p.images || []), publicUrl];
+          return {
+            ...p,
+            images,
+            imageUrl: p.imageUrl || publicUrl
+          };
+        });
+        showToast('Image uploaded and added to sticker gallery!', 'success');
       }
     } catch (err) {
       console.error('Upload failed:', err);
@@ -318,6 +335,7 @@ function AdminDashboard() {
         stock: parseInt(newSticker.stock),
         description: newSticker.description,
         imageUrl: newSticker.imageUrl || null,
+        images: newSticker.images || [],
         originalPrice: null,
         bgColor: '#F3F4F6',
         rating: 5.0,
@@ -333,7 +351,8 @@ function AdminDashboard() {
 
       if (error) throw error;
 
-      setNewSticker({ name: '', emoji: '', category: 'Funny', price: '', stock: '', description: '', imageUrl: '' });
+      setNewSticker({ name: '', emoji: '', category: 'Funny', price: '', stock: '', description: '', imageUrl: '', images: [] });
+      setImageUrlInput('');
       showToast('Sticker added successfully!', 'success');
       await fetchData();
     } catch (err) {
@@ -488,11 +507,13 @@ function AdminDashboard() {
           stock: parseInt(editingSticker.stock),
           description: editingSticker.description,
           imageUrl: editingSticker.imageUrl || null,
+          images: editingSticker.images || [],
         })
         .eq('id', editingSticker.id);
 
       if (error) throw error;
       setEditingSticker(null);
+      setEditImageUrlInput('');
       showToast('Sticker changes saved successfully!', 'success');
       await fetchData();
     } catch (err) {
@@ -1101,18 +1122,35 @@ function AdminDashboard() {
                           </ToggleButtonGroup>
 
                           {imageInputMode === 'url' ? (
-                            <TextField
-                              fullWidth
-                              label="Product Image URL"
-                              placeholder="e.g. https://images.unsplash.com/photo-..."
-                              value={newSticker.imageUrl}
-                              onChange={(e) => setNewSticker(p => ({ ...p, imageUrl: e.target.value }))}
-                              InputProps={{
-                                startAdornment: (
-                                  <LinkIcon color="action" sx={{ mr: 1 }} />
-                                )
-                              }}
-                            />
+                            <Box sx={{ display: 'flex', gap: 1 }}>
+                              <TextField
+                                fullWidth
+                                label="Paste Image URL"
+                                placeholder="Paste image link here..."
+                                value={imageUrlInput}
+                                onChange={(e) => setImageUrlInput(e.target.value)}
+                              />
+                              <Button
+                                variant="contained"
+                                onClick={() => {
+                                  if (imageUrlInput.trim()) {
+                                    setNewSticker(p => {
+                                      const images = [...(p.images || []), imageUrlInput.trim()];
+                                      return {
+                                        ...p,
+                                        images,
+                                        imageUrl: p.imageUrl || imageUrlInput.trim()
+                                      };
+                                    });
+                                    setImageUrlInput('');
+                                    showToast('Image URL added to gallery!', 'success');
+                                  }
+                                }}
+                                sx={{ fontWeight: 700, textTransform: 'none' }}
+                              >
+                                Add
+                              </Button>
+                            </Box>
                           ) : (
                             <Box>
                               <Button
@@ -1131,16 +1169,37 @@ function AdminDashboard() {
                                   onChange={(e) => handleFileUpload(e, false)}
                                 />
                               </Button>
-                              {newSticker.imageUrl && (
-                                <Typography variant="caption" color="success.main" sx={{ display: 'block', mt: 1, fontWeight: 700 }}>
-                                  ✅ Image uploaded successfully! URL: {newSticker.imageUrl.substring(0, 35)}...
-                                </Typography>
-                              )}
                               {uploadError && (
                                 <Alert severity="warning" sx={{ mt: 1.5, borderRadius: 2 }}>
                                   {uploadError}
                                 </Alert>
                               )}
+                            </Box>
+                          )}
+
+                          {/* Add Sticker images list */}
+                          {newSticker.images && newSticker.images.length > 0 && (
+                            <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mt: 2 }}>
+                              {newSticker.images.map((url, idx) => (
+                                <Box key={idx} sx={{ position: 'relative', width: 64, height: 64, border: '1px solid', borderColor: 'divider', borderRadius: 2, overflow: 'hidden', bgcolor: 'grey.50' }}>
+                                  <Box component="img" src={url} sx={{ width: '100%', height: '100%', objectFit: 'contain', p: 0.5 }} />
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={() => {
+                                      const updatedImages = newSticker.images.filter((_, i) => i !== idx);
+                                      setNewSticker(p => ({
+                                        ...p,
+                                        images: updatedImages,
+                                        imageUrl: updatedImages[0] || ''
+                                      }));
+                                    }}
+                                    sx={{ position: 'absolute', top: -4, right: -4, bgcolor: 'rgba(255,255,255,0.8)', '&:hover': { bgcolor: '#fff' }, p: 0.2 }}
+                                  >
+                                    <CloseIcon sx={{ fontSize: 14 }} />
+                                  </IconButton>
+                                </Box>
+                              ))}
                             </Box>
                           )}
                         </Paper>
@@ -1345,7 +1404,7 @@ function AdminDashboard() {
                             <TableCell align="center">
                               <Stack direction="row" spacing={1} sx={{ justifyContent: 'center' }}>
                                 <Tooltip title="Edit Product">
-                                  <IconButton size="small" color="primary" onClick={() => setEditingSticker(s)} sx={{ bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark' } }}>
+                                  <IconButton size="small" color="primary" onClick={() => setEditingSticker({ ...s, images: s.images || (s.imageUrl ? [s.imageUrl] : []) })} sx={{ bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark' } }}>
                                     <EditIcon fontSize="small" />
                                   </IconButton>
                                 </Tooltip>
@@ -1368,7 +1427,7 @@ function AdminDashboard() {
                       <Grid item xs={12} sm={6} md={4} key={s.id} sx={{ position: 'relative' }}>
                         {/* Action buttons overlay for grid cards */}
                         <Box sx={{ position: 'absolute', top: 20, right: 20, zIndex: 2, display: 'flex', gap: 0.8 }}>
-                          <IconButton size="small" onClick={() => setEditingSticker(s)} sx={{ bgcolor: 'white', boxShadow: '0 4px 10px rgba(0,0,0,0.15)', color: 'primary.main', '&:hover': { bgcolor: '#f4f4f4' } }}>
+                          <IconButton size="small" onClick={() => setEditingSticker({ ...s, images: s.images || (s.imageUrl ? [s.imageUrl] : []) })} sx={{ bgcolor: 'white', boxShadow: '0 4px 10px rgba(0,0,0,0.15)', color: 'primary.main', '&:hover': { bgcolor: '#f4f4f4' } }}>
                             <EditIcon fontSize="small" />
                           </IconButton>
                           <IconButton size="small" onClick={() => handleDeleteConfirm(s.id)} sx={{ bgcolor: 'white', boxShadow: '0 4px 10px rgba(0,0,0,0.15)', color: 'error.main', '&:hover': { bgcolor: '#f4f4f4' } }}>
@@ -1836,17 +1895,35 @@ function AdminDashboard() {
                         </ToggleButtonGroup>
 
                         {editImageInputMode === 'url' ? (
-                          <TextField
-                            fullWidth
-                            label="Product Image URL"
-                            value={editingSticker.imageUrl || ''}
-                            onChange={(e) => setEditingSticker(p => ({ ...p, imageUrl: e.target.value }))}
-                            InputProps={{
-                              startAdornment: (
-                                <LinkIcon color="action" sx={{ mr: 1 }} />
-                              )
-                            }}
-                          />
+                          <Box sx={{ display: 'flex', gap: 1 }}>
+                            <TextField
+                              fullWidth
+                              label="Paste Image URL"
+                              placeholder="Paste image link here..."
+                              value={editImageUrlInput}
+                              onChange={(e) => setEditImageUrlInput(e.target.value)}
+                            />
+                            <Button
+                              variant="contained"
+                              onClick={() => {
+                                  if (editImageUrlInput.trim()) {
+                                    setEditingSticker(p => {
+                                      const images = [...(p.images || []), editImageUrlInput.trim()];
+                                      return {
+                                        ...p,
+                                        images,
+                                        imageUrl: p.imageUrl || editImageUrlInput.trim()
+                                      };
+                                    });
+                                    setEditImageUrlInput('');
+                                    showToast('Image URL added to gallery!', 'success');
+                                  }
+                              }}
+                              sx={{ fontWeight: 700, textTransform: 'none' }}
+                            >
+                              Add
+                            </Button>
+                          </Box>
                         ) : (
                           <Box>
                             <Button
@@ -1865,16 +1942,37 @@ function AdminDashboard() {
                                 onChange={(e) => handleFileUpload(e, true)}
                               />
                             </Button>
-                            {editingSticker.imageUrl && (
-                              <Typography variant="caption" color="success.main" sx={{ display: 'block', mt: 1, fontWeight: 700 }}>
-                                ✅ Image uploaded successfully!
-                              </Typography>
-                            )}
                             {uploadError && (
                               <Alert severity="warning" sx={{ mt: 1, borderRadius: 2 }}>
                                 {uploadError}
                               </Alert>
                             )}
+                          </Box>
+                        )}
+
+                        {/* Edit Sticker images list */}
+                        {editingSticker.images && editingSticker.images.length > 0 && (
+                          <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mt: 2 }}>
+                            {editingSticker.images.map((url, idx) => (
+                              <Box key={idx} sx={{ position: 'relative', width: 64, height: 64, border: '1px solid', borderColor: 'divider', borderRadius: 2, overflow: 'hidden', bgcolor: 'grey.50' }}>
+                                <Box component="img" src={url} sx={{ width: '100%', height: '100%', objectFit: 'contain', p: 0.5 }} />
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={() => {
+                                    const updatedImages = editingSticker.images.filter((_, i) => i !== idx);
+                                    setEditingSticker(p => ({
+                                      ...p,
+                                      images: updatedImages,
+                                      imageUrl: updatedImages[0] || ''
+                                    }));
+                                  }}
+                                  sx={{ position: 'absolute', top: -4, right: -4, bgcolor: 'rgba(255,255,255,0.8)', '&:hover': { bgcolor: '#fff' }, p: 0.2 }}
+                                >
+                                  <CloseIcon sx={{ fontSize: 14 }} />
+                                </IconButton>
+                              </Box>
+                            ))}
                           </Box>
                         )}
                       </Paper>

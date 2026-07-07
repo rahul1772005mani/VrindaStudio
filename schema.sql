@@ -38,6 +38,7 @@ CREATE TABLE stickers (
   "isTrending" BOOLEAN DEFAULT false,
   description TEXT,
   "imageUrl" TEXT,
+  "images" TEXT[],
   tags TEXT[]
 );
 

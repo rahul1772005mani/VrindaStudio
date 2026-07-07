@@ -6,7 +6,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   AppBar, Toolbar, Typography, Box, IconButton, Badge,
   Button, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText,
-  Divider, useScrollTrigger, Popover,
+  Divider, useScrollTrigger, Popover, Snackbar, Alert,
 } from '@mui/material';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import MenuIcon from '@mui/icons-material/Menu';
@@ -51,6 +51,11 @@ function Navbar() {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationsAnchor, setNotificationsAnchor] = useState(null);
+  const [liveToast, setLiveToast] = useState({
+    open: false,
+    title: '',
+    message: ''
+  });
 
   const handleOpenNotifications = (event) => {
     setNotificationsAnchor(event.currentTarget);
@@ -128,6 +133,14 @@ function Navbar() {
         },
         (payload) => {
           fetchNotifications();
+          if (payload.eventType === 'INSERT') {
+            const newNotif = payload.new;
+            setLiveToast({
+              open: true,
+              title: newNotif.title || 'Order Update! 📦',
+              message: newNotif.message || 'Your order details have been updated.'
+            });
+          }
         }
       )
       .subscribe();
@@ -495,6 +508,38 @@ function Navbar() {
           )}
         </List>
       </Drawer>
+      {/* Live Order Status Update Toast Notification */}
+      <Snackbar
+        open={liveToast.open}
+        autoHideDuration={6000}
+        onClose={() => setLiveToast(prev => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{ mt: 7 }}
+      >
+        <Alert 
+          severity="info" 
+          onClose={() => setLiveToast(prev => ({ ...prev, open: false }))}
+          sx={{ 
+            borderRadius: 3, 
+            boxShadow: '0 8px 32px rgba(108,99,255,0.15)',
+            borderLeft: '5px solid #6C63FF',
+            bgcolor: '#fff',
+            color: 'text.primary',
+            '& .MuiAlert-icon': {
+              color: '#6C63FF'
+            }
+          }}
+        >
+          <Box>
+            <Typography variant="body2" fontWeight={800} color="primary" sx={{ mb: 0.5 }}>
+              {liveToast.title}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.4 }}>
+              {liveToast.message}
+            </Typography>
+          </Box>
+        </Alert>
+      </Snackbar>
     </>
   );
 }
