@@ -19,10 +19,14 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { amount, currency, receipt } = req.body;
+    const body = req.body || {};
+    console.log('Received Order Request Body:', body);
+    
+    const { amount, currency, receipt } = body;
 
     // Validation
     if (!amount || typeof amount !== 'number' || amount < 100) {
+      console.warn('Invalid amount requested:', amount);
       return res.status(400).json({ error: 'Valid amount in paise (minimum 100 paise) is required' });
     }
 
@@ -30,9 +34,11 @@ export default async function handler(req, res) {
     const key_secret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!key_id || !key_secret) {
+      console.error('Razorpay credentials not found in env!');
       return res.status(500).json({ error: 'Razorpay API credentials are not configured in Vercel environment' });
     }
 
+    console.log('Initializing Razorpay SDK with Key ID:', key_id);
     const razorpay = new Razorpay({ key_id, key_secret });
 
     const options = {
@@ -41,19 +47,21 @@ export default async function handler(req, res) {
       receipt: receipt || `receipt_${Date.now()}`,
     };
 
+    console.log('Calling Razorpay orders.create with options:', options);
     const order = await razorpay.orders.create(options);
     
     if (!order) {
       throw new Error('Razorpay order creation returned an empty response');
     }
 
+    console.log('Successfully created Razorpay order:', order.id);
     return res.status(200).json({
       order_id: order.id,
       amount: order.amount,
       currency: order.currency,
     });
   } catch (err) {
-    console.error('Razorpay order creation error:', err);
+    console.error('Razorpay order creation runtime error:', err);
     const errorMsg = err.error?.description || err.message || 'Failed to create order on Razorpay';
     return res.status(500).json({ error: errorMsg });
   }
