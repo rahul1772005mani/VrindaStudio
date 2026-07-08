@@ -173,16 +173,72 @@ function Checkout() {
           return;
         }
 
+        const totalPaise = Math.round(cartTotal * 100);
+        if (totalPaise < 100) {
+          alert('The order amount must be at least ₹1 (100 paise) to proceed with online payment.');
+          setOrderLoading(false);
+          return;
+        }
+
+        // 1. Create order on the backend
+        const orderRes = await fetch('/api/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: totalPaise,
+            currency: 'INR',
+            receipt: `receipt_${Date.now()}`
+          })
+        });
+
+        if (!orderRes.ok) {
+          const errorData = await orderRes.json();
+          throw new Error(errorData.error || 'Failed to create transaction order');
+        }
+
+        const orderData = await orderRes.json();
+
+        // 2. Open Razorpay modal with order_id
         const options = {
-          key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_zOOCJk7iM0pXG0',
-          amount: cartTotal * 100, // in paise
-          currency: 'INR',
+          key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_TB5duynfbxQ3wT',
+          amount: orderData.amount,
+          currency: orderData.currency,
           name: 'Vrinda Studio',
           description: 'Checkout Payment',
           image: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=100&q=80',
+          order_id: orderData.order_id,
           handler: async function (response) {
-            const paymentId = response.razorpay_payment_id;
-            await processOrderInsert(`Razorpay (ID: ${paymentId})`);
+            try {
+              setOrderLoading(true);
+              
+              // 3. Verify payment signature on the backend
+              const verifyRes = await fetch('/api/verify-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature
+                })
+              });
+
+              if (!verifyRes.ok) {
+                const verifyError = await verifyRes.json();
+                throw new Error(verifyError.error || 'Signature verification failed');
+              }
+
+              const verifyData = await verifyRes.json();
+              if (verifyData.success) {
+                // Payment verified! Insert order into database
+                await processOrderInsert(`Razorpay (ID: ${response.razorpay_payment_id}, Order: ${response.razorpay_order_id})`);
+              } else {
+                throw new Error('Payment verification returned unsuccessful state');
+              }
+            } catch (err) {
+              console.error('Signature verification failed:', err);
+              alert('Payment verification failed! Please check with your bank if money was deducted: ' + err.message);
+              setOrderLoading(false);
+            }
           },
           prefill: {
             name: address.name,
@@ -198,15 +254,24 @@ function Checkout() {
           modal: {
             ondismiss: function () {
               setOrderLoading(false);
+              alert('Payment checkout window was closed. Payment not processed.');
             }
           }
         };
 
         const rzp = new window.Razorpay(options);
+
+        // Listen for payment failure event
+        rzp.on('payment.failed', function (response) {
+          console.error('Payment failed details:', response.error);
+          alert(`Payment failed! Code: ${response.error.code}. Reason: ${response.error.description}`);
+          setOrderLoading(false);
+        });
+
         rzp.open();
       } catch (err) {
         console.error('Razorpay payment gateway failed to open:', err);
-        alert('Payment process failed to start: ' + err.message);
+        alert('Payment process failed: ' + err.message);
         setOrderLoading(false);
       }
     }
